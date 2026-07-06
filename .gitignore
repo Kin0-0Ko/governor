@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+out/
+.next/
+*.tsbuildinfo
+
+# NX cache (local machine artifacts, not source)
+.nx/cache
+.nx/workspace-data
+
+# Test & coverage
+coverage/
+*.lcov
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+bash.exe.stackdump
+
+# Editor
+.vscode/settings.json
+.idea/
+
+# Claude Code agent files (machine-local, not project source)
+.claude/
+
+# Speckit / specify tooling (local dev scaffolding, not shipped source)
+.specify/
+
+# Redis cluster state (generated at runtime by docker)
+nodes.conf
+dump.rdb
+appendonly.aof
