@@ -1,0 +1,39 @@
+{
+  "name": "worker",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/worker/src",
+  "projectType": "application",
+  "tags": ["scope:worker"],
+  "targets": {
+    "build": {
+      "executor": "@nx/node:build",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/apps/worker",
+        "main": "apps/worker/src/main.ts",
+        "tsConfig": "apps/worker/tsconfig.app.json",
+        "assets": []
+      }
+    },
+    "serve": {
+      "executor": "@nx/node:execute",
+      "options": {
+        "buildTarget": "worker:build"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["apps/worker/**/*.ts"]
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/apps/worker"],
+      "options": {
+        "jestConfig": "apps/worker/jest.config.ts"
+      }
+    }
+  }
+}
