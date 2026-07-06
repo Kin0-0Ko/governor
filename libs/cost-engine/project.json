@@ -1,0 +1,33 @@
+{
+  "name": "cost-engine",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/cost-engine/src",
+  "projectType": "library",
+  "tags": ["scope:domain"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/cost-engine",
+        "main": "libs/cost-engine/src/index.ts",
+        "tsConfig": "libs/cost-engine/tsconfig.lib.json",
+        "assets": []
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["libs/cost-engine/**/*.ts"]
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/cost-engine"],
+      "options": {
+        "jestConfig": "libs/cost-engine/jest.config.ts"
+      }
+    }
+  }
+}
