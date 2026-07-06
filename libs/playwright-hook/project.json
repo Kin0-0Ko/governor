@@ -1,0 +1,33 @@
+{
+  "name": "playwright-hook",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/playwright-hook/src",
+  "projectType": "library",
+  "tags": ["scope:client"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/playwright-hook",
+        "main": "libs/playwright-hook/src/index.ts",
+        "tsConfig": "libs/playwright-hook/tsconfig.lib.json",
+        "assets": []
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["libs/playwright-hook/**/*.ts"]
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/playwright-hook"],
+      "options": {
+        "jestConfig": "libs/playwright-hook/jest.config.ts"
+      }
+    }
+  }
+}
