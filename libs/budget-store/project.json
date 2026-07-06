@@ -1,0 +1,39 @@
+{
+  "name": "budget-store",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/budget-store/src",
+  "projectType": "library",
+  "tags": ["scope:infra"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/budget-store",
+        "main": "libs/budget-store/src/index.ts",
+        "tsConfig": "libs/budget-store/tsconfig.lib.json",
+        "assets": [
+          {
+            "input": "libs/budget-store/src/lua",
+            "glob": "**/*.lua",
+            "output": "lua"
+          }
+        ]
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["libs/budget-store/**/*.ts"]
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/budget-store"],
+      "options": {
+        "jestConfig": "libs/budget-store/jest.config.ts"
+      }
+    }
+  }
+}
