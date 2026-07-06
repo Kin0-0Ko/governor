@@ -1,0 +1,72 @@
+import {
+  Controller,
+  Post,
+  Body,
+  HttpCode,
+  HttpStatus,
+  Res,
+} from '@nestjs/common';
+import { IsString, IsNotEmpty, IsArray, IsInt, Min, IsISO8601 } from 'class-validator';
+import { Type } from 'class-transformer';
+import { Response } from 'express';
+import { EnforceService } from './enforce.service';
+
+export class EnforceRequestDto {
+  @IsString() @IsNotEmpty() orgId!: string;
+  @IsString() @IsNotEmpty() jobId!: string;
+  @IsString() @IsNotEmpty() targetId!: string;
+  @IsString() @IsNotEmpty() provider!: string;
+  @IsArray() @IsString({ each: true }) features!: string[];
+  @IsString() @IsNotEmpty() idempotencyKey!: string;
+  @IsISO8601() requestTimestamp!: string;
+  @IsInt() @Min(0) @Type(() => Number) retryIndex!: number;
+}
+
+@Controller()
+export class EnforceController {
+  constructor(private readonly enforceService: EnforceService) {}
+
+  @Post('v1/enforce')
+  @HttpCode(HttpStatus.OK)
+  async enforce(
+    @Body() dto: EnforceRequestDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const result = await this.enforceService.enforce(dto);
+
+    if (result.decision === 'ALLOWED') {
+      res.status(200).json({
+        decision: 'ALLOWED',
+        costMicros: result.costMicros.toString(),
+        remainingMicros: result.remainingMicros.toString(),
+        state: result.state,
+      });
+      return;
+    }
+
+    if (result.state === 'STORE_UNAVAILABLE') {
+      res.status(503).json({
+        decision: 'DENIED',
+        state: 'STORE_UNAVAILABLE',
+        message: 'Enforcement store unreachable. Fail-safe deny.',
+      });
+      return;
+    }
+
+    if (result.state === 'NO_BUDGET') {
+      res.status(402).json({
+        decision: 'DENIED',
+        state: 'NO_BUDGET',
+        message: 'No budget configured for scope. Explicit budget required before spend is authorized.',
+      });
+      return;
+    }
+
+    res.status(402).json({
+      decision: 'DENIED',
+      state: result.state,
+      budgetId: result.budgetId,
+      message: `Budget cap reached for scope ${dto.orgId}/${dto.jobId}/${dto.targetId}`,
+    });
+  }
+}
