@@ -1,0 +1,122 @@
+services:
+  # Redis Cluster (6 nodes: 3 primary + 3 replica)
+  redis-1:
+    image: redis:7.4-alpine
+    command: redis-server --port 7000 --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes
+    ports: ["7000:7000"]
+    networks: [governor]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7000", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-2:
+    image: redis:7.4-alpine
+    command: redis-server --port 7001 --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes
+    ports: ["7001:7001"]
+    networks: [governor]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7001", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-3:
+    image: redis:7.4-alpine
+    command: redis-server --port 7002 --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes
+    ports: ["7002:7002"]
+    networks: [governor]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7002", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-4:
+    image: redis:7.4-alpine
+    command: redis-server --port 7003 --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes
+    ports: ["7003:7003"]
+    networks: [governor]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7003", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-5:
+    image: redis:7.4-alpine
+    command: redis-server --port 7004 --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes
+    ports: ["7004:7004"]
+    networks: [governor]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7004", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-6:
+    image: redis:7.4-alpine
+    command: redis-server --port 7005 --cluster-enabled yes --cluster-config-file nodes.conf --cluster-node-timeout 5000 --appendonly yes
+    ports: ["7005:7005"]
+    networks: [governor]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7005", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis-cluster-init:
+    image: redis:7.4-alpine
+    networks: [governor]
+    depends_on:
+      redis-1: { condition: service_healthy }
+      redis-2: { condition: service_healthy }
+      redis-3: { condition: service_healthy }
+      redis-4: { condition: service_healthy }
+      redis-5: { condition: service_healthy }
+      redis-6: { condition: service_healthy }
+    entrypoint: [
+      "redis-cli", "--cluster", "create",
+      "redis-1:7000", "redis-2:7001", "redis-3:7002",
+      "redis-4:7003", "redis-5:7004", "redis-6:7005",
+      "--cluster-replicas", "1", "--cluster-yes"
+    ]
+    restart: on-failure
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: governor
+      POSTGRES_USER: governor
+      POSTGRES_PASSWORD: governor_dev
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    networks: [governor]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U governor -d governor"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:4.0-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: governor
+      RABBITMQ_DEFAULT_PASS: governor_dev
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks: [governor]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
+
+networks:
+  governor:
+    driver: bridge
