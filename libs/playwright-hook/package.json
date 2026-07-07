@@ -1,5 +1,5 @@
 {
-  "name": "@governor/playwright-hook",
+  "name": "@scrape-governor/playwright-hook",
   "version": "0.2.0",
   "description": "Playwright request interceptor with atomic budget enforcement via Governor API",
   "license": "MIT",

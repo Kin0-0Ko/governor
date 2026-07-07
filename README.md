@@ -10,7 +10,7 @@ POST /v1/enforce  →  ALLOWED / DENIED  (<10ms p99)
 
 ```
 Playwright page
-  └─ @governor/playwright-hook
+  └─ @scrape-governor/playwright-hook
        └─ POST /v1/enforce  ──→  apps/api  (NestJS)
                                     ├─ Redis Lua EVALSHA  (hot path, <10ms)
                                     ├─ PostgreSQL         (cold path ledger)
@@ -27,8 +27,8 @@ apps/dashboard  (Next.js + RTK Query + SSE)  ──→  live circuit state & spe
 
 | Package | npm | Description |
 |---|---|---|
-| `@governor/cost-engine` | [![npm](https://img.shields.io/npm/v/@governor/cost-engine)](https://www.npmjs.com/package/@governor/cost-engine) | Pure pricing contracts + `computeCostMicros` |
-| `@governor/playwright-hook` | [![npm](https://img.shields.io/npm/v/@governor/playwright-hook)](https://www.npmjs.com/package/@governor/playwright-hook) | Playwright request interceptor |
+| `@scrape-governor/cost-engine` | [![npm](https://img.shields.io/npm/v/@scrape-governor/cost-engine)](https://www.npmjs.com/package/@scrape-governor/cost-engine) | Pure pricing contracts + `computeCostMicros` |
+| `@scrape-governor/playwright-hook` | [![npm](https://img.shields.io/npm/v/@scrape-governor/playwright-hook)](https://www.npmjs.com/package/@scrape-governor/playwright-hook) | Playwright request interceptor |
 
 Private apps (not published): `api`, `worker`, `dashboard`.
 
@@ -121,17 +121,17 @@ curl -s -X POST http://localhost:3000/v1/enforce \
 
 ---
 
-## Using `@governor/playwright-hook`
+## Using `@scrape-governor/playwright-hook`
 
 ```bash
-npm install @governor/playwright-hook
+npm install @scrape-governor/playwright-hook
 # peer deps (one of):
 npm install playwright
 npm install @playwright/test
 ```
 
 ```typescript
-import { GovernorHook, GovernorDeniedError } from '@governor/playwright-hook';
+import { GovernorHook, GovernorDeniedError } from '@scrape-governor/playwright-hook';
 import { test } from '@playwright/test';
 
 const hook = new GovernorHook({
@@ -169,14 +169,14 @@ test('scrape with budget enforcement', async ({ page }) => {
 
 ---
 
-## Using `@governor/cost-engine`
+## Using `@scrape-governor/cost-engine`
 
 ```bash
-npm install @governor/cost-engine
+npm install @scrape-governor/cost-engine
 ```
 
 ```typescript
-import { computeCostMicros, ScraperApiAdapter, type CostAdapter } from '@governor/cost-engine';
+import { computeCostMicros, ScraperApiAdapter, type CostAdapter } from '@scrape-governor/cost-engine';
 
 // Direct computation
 const cost = computeCostMicros(
@@ -407,9 +407,9 @@ governor/
 │   ├── worker/       RabbitMQ consumers (spend-rollup, alerts)
 │   └── dashboard/    Next.js SSE dashboard
 ├── libs/
-│   ├── cost-engine/  @governor/cost-engine  (publishable)
+│   ├── cost-engine/  @scrape-governor/cost-engine  (publishable)
 │   └── budget-store/ Redis Lua enforcement  (internal)
-│   └── playwright-hook/ @governor/playwright-hook (publishable)
+│   └── playwright-hook/ @scrape-governor/playwright-hook (publishable)
 ├── specs/            Feature specification, plan, tasks
 └── docker-compose.yml
 ```
