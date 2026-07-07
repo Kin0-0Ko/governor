@@ -1,6 +1,6 @@
 {
   "name": "@governor/playwright-hook",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Playwright request interceptor with atomic budget enforcement via Governor API",
   "license": "MIT",
   "repository": {
@@ -30,12 +30,22 @@
     "playwright": ">=1.40.0"
   },
   "peerDependenciesMeta": {
-    "@playwright/test": { "optional": true },
-    "playwright": { "optional": true }
+    "@playwright/test": {
+      "optional": true
+    },
+    "playwright": {
+      "optional": true
+    }
   },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
   },
-  "keywords": ["playwright", "budget", "cost-control", "scraping", "governor"]
+  "keywords": [
+    "playwright",
+    "budget",
+    "cost-control",
+    "scraping",
+    "governor"
+  ]
 }

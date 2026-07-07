@@ -1,6 +1,6 @@
 {
   "name": "@governor/cost-engine",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Pure domain pricing engine for scraping cost computation — implement CostAdapter for any provider",
   "license": "MIT",
   "repository": {
@@ -28,5 +28,12 @@
     "access": "public",
     "registry": "https://registry.npmjs.org"
   },
-  "keywords": ["cost-engine", "pricing", "scraping", "bigint", "governor", "adapter"]
+  "keywords": [
+    "cost-engine",
+    "pricing",
+    "scraping",
+    "bigint",
+    "governor",
+    "adapter"
+  ]
 }
