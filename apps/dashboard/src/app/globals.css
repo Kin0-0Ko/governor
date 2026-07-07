@@ -1,0 +1,4 @@
+@import "@heroui/styles";
+
+@source "../../src/**/*.{ts,tsx}";
+

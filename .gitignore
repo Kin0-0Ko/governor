@@ -43,6 +43,10 @@ bash.exe.stackdump
 
 # Speckit / specify tooling (local dev scaffolding, not shipped source)
 .specify/
+specs/
+
+# Local agent instructions, not shipped source
+CLAUDE.md
 
 # Redis cluster state (generated at runtime by docker)
 nodes.conf

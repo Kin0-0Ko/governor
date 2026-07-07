@@ -1,3 +1,5 @@
+jest.mock('amqplib', () => ({}), { virtual: true });
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { ValidationPipe, NotFoundException, ConflictException } from '@nestjs/common';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -5,6 +7,8 @@ const request = require('supertest') as typeof import('supertest');
 import { BudgetsController } from './budgets.controller';
 import { BudgetsService } from './budgets.service';
 import { BudgetStoreService } from '@governor/budget-store';
+import { StreamService } from '../stream/stream.service';
+import { RABBITMQ_CLIENT } from '../messaging/events.module';
 
 const BUDGET_ID = 'budget-uuid-001';
 
@@ -35,6 +39,7 @@ function makeServices() {
   const budgetSvc = {
     create: jest.fn().mockResolvedValue(makeBudget()),
     findById: jest.fn().mockResolvedValue(makeBudget()),
+    findAllByOrg: jest.fn().mockResolvedValue([makeBudget()]),
     update: jest.fn().mockResolvedValue(makeBudget()),
     softDelete: jest.fn().mockResolvedValue(undefined),
   };
@@ -46,12 +51,27 @@ function makeServices() {
   return { budgetSvc, storeSvc };
 }
 
-async function buildApp(budgetSvc: object, storeSvc: object) {
+function makeRmqClient() {
+  return { emit: jest.fn().mockReturnValue({ subscribe: (obs: any) => obs?.next?.() }) };
+}
+
+function makeStreamService() {
+  return { emit: jest.fn() };
+}
+
+async function buildApp(
+  budgetSvc: object,
+  storeSvc: object,
+  rmqClient: object = makeRmqClient(),
+  streamSvc: object = makeStreamService(),
+) {
   const module: TestingModule = await Test.createTestingModule({
     controllers: [BudgetsController],
     providers: [
       { provide: BudgetsService, useValue: budgetSvc },
       { provide: BudgetStoreService, useValue: storeSvc },
+      { provide: RABBITMQ_CLIENT, useValue: rmqClient },
+      { provide: StreamService, useValue: streamSvc },
     ],
   }).compile();
 
@@ -118,6 +138,40 @@ describe('BudgetsController', () => {
     });
   });
 
+  describe('GET /v1/budgets', () => {
+    it('returns the authenticated org\'s budgets merged with live state', async () => {
+      const { budgetSvc, storeSvc } = makeServices();
+      budgetSvc.findAllByOrg.mockResolvedValue([makeBudget()]);
+      const app = await buildApp(budgetSvc, storeSvc);
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/budgets')
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].id).toBe(BUDGET_ID);
+      expect(res.body[0].circuitState).toBe('CLOSED');
+      expect(res.body[0].spendMicros).toBe('5000000');
+      expect(storeSvc.getState).toHaveBeenCalledWith('org-1', BUDGET_ID, 50_000_000n);
+
+      await app.close();
+    });
+
+    it('returns 200 with an empty array when the org has no budgets', async () => {
+      const { budgetSvc, storeSvc } = makeServices();
+      budgetSvc.findAllByOrg.mockResolvedValue([]);
+      const app = await buildApp(budgetSvc, storeSvc);
+
+      const res = await request(app.getHttpServer())
+        .get('/v1/budgets')
+        .expect(200);
+
+      expect(res.body).toEqual([]);
+
+      await app.close();
+    });
+  });
+
   describe('GET /v1/budgets/:id', () => {
     it('returns budget with live Redis state', async () => {
       const { budgetSvc, storeSvc } = makeServices();
@@ -144,6 +198,23 @@ describe('BudgetsController', () => {
       await request(app.getHttpServer())
         .get(`/v1/budgets/nonexistent`)
         .expect(404);
+
+      await app.close();
+    });
+
+    it('passes the authenticated orgId through to the service (FR-008)', async () => {
+      const { budgetSvc, storeSvc } = makeServices();
+      const app = await buildApp(budgetSvc, storeSvc);
+
+      await request(app.getHttpServer())
+        .get(`/v1/budgets/${BUDGET_ID}`)
+        .expect(200);
+
+      // req.orgId is undefined in this isolated controller test (no real
+      // ApiKeyGuard registered), but the controller must still be the one
+      // passing whatever req.orgId resolves to — the actual enforcement of
+      // matching happens in BudgetsService (see budgets.service.spec.ts).
+      expect(budgetSvc.findById).toHaveBeenCalledWith(BUDGET_ID, undefined);
 
       await app.close();
     });
@@ -187,7 +258,7 @@ describe('BudgetsController', () => {
         .delete(`/v1/budgets/${BUDGET_ID}`)
         .expect(204);
 
-      expect(budgetSvc.softDelete).toHaveBeenCalledWith(BUDGET_ID);
+      expect(budgetSvc.softDelete).toHaveBeenCalledWith(BUDGET_ID, undefined);
 
       await app.close();
     });
@@ -207,6 +278,40 @@ describe('BudgetsController', () => {
       expect(res.body.newState).toBe('CLOSED');
       expect(typeof res.body.resetAt).toBe('string');
       expect(storeSvc.resetCircuit).toHaveBeenCalledWith('org-1', BUDGET_ID);
+
+      await app.close();
+    });
+
+    it('emits a CIRCUIT_RESET alert', async () => {
+      const { budgetSvc, storeSvc } = makeServices();
+      const rmqClient = makeRmqClient();
+      const app = await buildApp(budgetSvc, storeSvc, rmqClient);
+
+      await request(app.getHttpServer())
+        .post(`/v1/budgets/${BUDGET_ID}/reset`)
+        .expect(201);
+
+      expect(rmqClient.emit).toHaveBeenCalledWith(
+        'budget.breached',
+        expect.objectContaining({ budgetId: BUDGET_ID, orgId: 'org-1', eventType: 'CIRCUIT_RESET' }),
+      );
+
+      await app.close();
+    });
+
+    it('emits a reset event via StreamService', async () => {
+      const { budgetSvc, storeSvc } = makeServices();
+      const streamSvc = makeStreamService();
+      const app = await buildApp(budgetSvc, storeSvc, makeRmqClient(), streamSvc);
+
+      await request(app.getHttpServer())
+        .post(`/v1/budgets/${BUDGET_ID}/reset`)
+        .expect(201);
+
+      expect(streamSvc.emit).toHaveBeenCalledWith(
+        BUDGET_ID,
+        expect.objectContaining({ type: 'reset' }),
+      );
 
       await app.close();
     });

@@ -61,8 +61,7 @@ export class SpendRollupConsumer {
       channel.ack(message);
       this.logger.log(`Spend recorded: ${data.idempotencyKey}`);
     } catch (err: unknown) {
-      const isDuplicate =
-        err instanceof Error && err.message.includes('duplicate key');
+      const isDuplicate = (err as { code?: string }).code === '23505';
 
       if (isDuplicate) {
         this.logger.log(`Idempotent duplicate: ${data.idempotencyKey}`);

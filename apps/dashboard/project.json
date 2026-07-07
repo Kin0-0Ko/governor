@@ -20,6 +20,14 @@
         "port": 4200
       }
     },
+    "serve-production": {
+      "executor": "@nx/next:server",
+      "options": {
+        "buildTarget": "dashboard:build",
+        "dev": false,
+        "port": 4200
+      }
+    },
     "lint": {
       "executor": "@nx/eslint:lint",
       "outputs": ["{options.outputFile}"],

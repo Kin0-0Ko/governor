@@ -28,6 +28,11 @@
       "options": {
         "jestConfig": "libs/playwright-hook/jest.config.ts"
       }
+    },
+    "nx-release-publish": {
+      "options": {
+        "packageRoot": "dist/libs/playwright-hook"
+      }
     }
   }
 }

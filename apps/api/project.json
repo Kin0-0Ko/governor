@@ -6,19 +6,16 @@
   "tags": ["scope:api"],
   "targets": {
     "build": {
-      "executor": "@nx/node:build",
-      "outputs": ["{options.outputPath}"],
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/dist/apps/api"],
       "options": {
-        "outputPath": "dist/apps/api",
-        "main": "apps/api/src/main.ts",
-        "tsConfig": "apps/api/tsconfig.app.json",
-        "assets": ["apps/api/src/assets"]
+        "command": "tsc -p apps/api/tsconfig.app.json --outDir dist/apps/api"
       }
     },
     "serve": {
-      "executor": "@nx/node:execute",
+      "executor": "nx:run-commands",
       "options": {
-        "buildTarget": "api:build"
+        "command": "cross-env TS_NODE_PROJECT=apps/api/tsconfig.app.json ts-node -r tsconfig-paths/register apps/api/src/main.ts"
       }
     },
     "lint": {
@@ -38,13 +35,19 @@
     "db:migrate": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "ts-node -r tsconfig-paths/register apps/api/src/database/migration-runner.ts"
+        "command": "cross-env TS_NODE_PROJECT=apps/api/tsconfig.app.json ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js migration:run -d apps/api/src/database/data-source.ts"
       }
     },
     "seed:providers": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "ts-node -r tsconfig-paths/register apps/api/src/database/seeds/providers.seed.ts"
+        "command": "cross-env TS_NODE_PROJECT=apps/api/tsconfig.app.json ts-node -r tsconfig-paths/register apps/api/src/database/seeds/providers.seed.ts"
+      }
+    },
+    "seed:api-key": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "cross-env TS_NODE_PROJECT=apps/api/tsconfig.app.json ts-node -r tsconfig-paths/register apps/api/src/database/seeds/api-key.seed.ts"
       }
     }
   }

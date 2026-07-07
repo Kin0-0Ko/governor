@@ -1,6 +1,6 @@
 {
   "root": true,
-  "ignorePatterns": ["**/*"],
+  "ignorePatterns": ["**/dist", "**/node_modules", "**/*.d.ts"],
   "plugins": ["@nx"],
   "overrides": [
     {
@@ -44,6 +44,9 @@
     {
       "files": ["*.ts", "*.tsx"],
       "extends": ["plugin:@nx/typescript"],
+      "parserOptions": {
+        "project": ["./*/tsconfig.*?(app|lib|spec).json", "./**/tsconfig.*?(app|lib|spec).json"]
+      },
       "rules": {
         "@typescript-eslint/no-explicit-any": "warn",
         "@typescript-eslint/no-floating-promises": "error"

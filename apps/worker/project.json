@@ -6,19 +6,16 @@
   "tags": ["scope:worker"],
   "targets": {
     "build": {
-      "executor": "@nx/node:build",
-      "outputs": ["{options.outputPath}"],
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/dist/apps/worker"],
       "options": {
-        "outputPath": "dist/apps/worker",
-        "main": "apps/worker/src/main.ts",
-        "tsConfig": "apps/worker/tsconfig.app.json",
-        "assets": []
+        "command": "tsc -p apps/worker/tsconfig.app.json --outDir dist/apps/worker"
       }
     },
     "serve": {
-      "executor": "@nx/node:execute",
+      "executor": "nx:run-commands",
       "options": {
-        "buildTarget": "worker:build"
+        "command": "cross-env TS_NODE_PROJECT=apps/worker/tsconfig.app.json ts-node -r tsconfig-paths/register apps/worker/src/main.ts"
       }
     },
     "lint": {

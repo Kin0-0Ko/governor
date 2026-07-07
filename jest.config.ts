@@ -5,6 +5,7 @@ const config: Config = {
     '<rootDir>/libs/cost-engine',
     '<rootDir>/libs/budget-store',
     '<rootDir>/libs/playwright-hook',
+    '<rootDir>/libs/messaging-contracts',
     '<rootDir>/apps/api',
     '<rootDir>/apps/worker',
     '<rootDir>/apps/dashboard'

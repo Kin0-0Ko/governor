@@ -99,7 +99,7 @@ describe('SpendRollupConsumer', () => {
   describe('idempotency — duplicate key', () => {
     it('acks duplicate key error without re-throwing', async () => {
       const { consumer } = await buildConsumer({
-        save: jest.fn().mockRejectedValue(new Error('duplicate key value violates unique constraint')),
+        save: jest.fn().mockRejectedValue(Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' })),
       });
       const ctx = makeCtx();
       await consumer.handleSpendRecorded(makePayload(), ctx as never);
@@ -112,6 +112,16 @@ describe('SpendRollupConsumer', () => {
     it('nacks with requeue=false on unexpected error', async () => {
       const { consumer } = await buildConsumer({
         save: jest.fn().mockRejectedValue(new Error('connection lost')),
+      });
+      const ctx = makeCtx();
+      await consumer.handleSpendRecorded(makePayload(), ctx as never);
+      expect(ctx._nack).toHaveBeenCalledWith(expect.anything(), false, false);
+      expect(ctx._ack).not.toHaveBeenCalled();
+    });
+
+    it('nacks an error whose message merely resembles a duplicate-key message but lacks code 23505', async () => {
+      const { consumer } = await buildConsumer({
+        save: jest.fn().mockRejectedValue(new Error('duplicate key value violates unique constraint')),
       });
       const ctx = makeCtx();
       await consumer.handleSpendRecorded(makePayload(), ctx as never);

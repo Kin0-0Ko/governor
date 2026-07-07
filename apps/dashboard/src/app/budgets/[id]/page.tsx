@@ -1,67 +1,90 @@
 'use client';
 import { useParams } from 'next/navigation';
+import { Alert, Button, Card, Chip, ProgressBar } from '@heroui/react';
 import { useBudgetStream } from '../../../store/hooks/useBudgetStream';
 import { useResetCircuitMutation } from '../../../store/api/governor.api';
-import { formatUsd, Statebadge } from '../page';
+import { formatUsd, stateColor } from '../../../features/budgets/stateColor';
+import { ConnectionErrorView, LoadingView, NotFoundView } from '../../../features/budgets/StateViews';
 
 export default function BudgetDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: budget, isLoading, error } = useBudgetStream(id);
   const [resetCircuit, { isLoading: resetting }] = useResetCircuitMutation();
 
-  if (isLoading) return <main style={{ padding: 24 }}>Loading...</main>;
-  if (error || !budget) return <main style={{ padding: 24 }}>Budget not found.</main>;
+  if (isLoading) return <main className="p-6 max-w-2xl mx-auto"><LoadingView /></main>;
+
+  const httpStatus = error && 'status' in error ? error.status : undefined;
+  if (httpStatus === 404) {
+    return <main className="p-6 max-w-2xl mx-auto"><NotFoundView label={`Budget ${id} not found`} /></main>;
+  }
+  if (error || !budget) {
+    return <main className="p-6 max-w-2xl mx-auto"><ConnectionErrorView /></main>;
+  }
 
   const cap = BigInt(budget.capMicros);
   const spend = BigInt(budget.spendMicros ?? '0');
   const pct = cap > 0n ? Number((spend * 10000n) / cap) / 100 : 0;
+  const isOpen = budget.circuitState === 'OPEN';
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1>
-        Budget <code>{id}</code>
+    <main className="p-6 max-w-2xl mx-auto">
+      <h1 className="text-2xl font-semibold mb-4">
+        Budget <code className="text-base opacity-70">{id}</code>
       </h1>
 
-      <div style={{ marginBottom: 16 }}>
-        <Statebadge state={budget.circuitState} />
-        {budget.circuitState === 'OPEN' && (
-          <div style={{ background: '#fef2f2', border: '1px solid #ef4444', borderRadius: 4, padding: 8, marginTop: 8 }}>
-            Budget breached — circuit OPEN
+      <div className="mb-4 flex items-center gap-3">
+        <Chip color={stateColor(budget.circuitState)}>
+          <Chip.Label>{budget.circuitState ?? 'UNKNOWN'}</Chip.Label>
+        </Chip>
+      </div>
+
+      {isOpen && (
+        <Alert status="danger" className="mb-6">
+          <Alert.Content>
+            <Alert.Title>Budget breached — circuit OPEN</Alert.Title>
+            <Alert.Description>All requests in this scope are being denied until the circuit resets.</Alert.Description>
+          </Alert.Content>
+        </Alert>
+      )}
+
+      <Card className="mb-6">
+        <Card.Content>
+          <div className="flex justify-between text-sm mb-1">
+            <span>
+              {formatUsd(budget.spendMicros)} / {formatUsd(budget.capMicros)}
+            </span>
+            <span>{pct.toFixed(1)}% used</span>
           </div>
-        )}
-      </div>
+          <ProgressBar
+            aria-label="Budget spend"
+            value={Math.min(pct, 100)}
+            minValue={0}
+            maxValue={100}
+            color={isOpen ? 'danger' : 'accent'}
+          >
+            <ProgressBar.Track>
+              <ProgressBar.Fill />
+            </ProgressBar.Track>
+          </ProgressBar>
+        </Card.Content>
+      </Card>
 
-      <div style={{ marginBottom: 24 }}>
-        <div>Spend: {formatUsd(budget.spendMicros)} / {formatUsd(budget.capMicros)}</div>
-        <div style={{ background: '#e5e7eb', borderRadius: 4, height: 12, marginTop: 4 }}>
-          <div
-            style={{
-              background: budget.circuitState === 'OPEN' ? '#ef4444' : '#3b82f6',
-              width: `${Math.min(pct, 100)}%`,
-              height: '100%',
-              borderRadius: 4,
-              transition: 'width 0.5s',
-            }}
-          />
-        </div>
-        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{pct.toFixed(1)}% used</div>
-      </div>
-
-      <button
-        onClick={() => resetCircuit(id)}
-        disabled={resetting || budget.circuitState === 'CLOSED'}
-        style={{ padding: '8px 16px', cursor: 'pointer' }}
+      <Button
+        onPress={() => resetCircuit(id)}
+        isDisabled={resetting || budget.circuitState === 'CLOSED'}
       >
-        {resetting ? 'Resetting...' : 'Reset Circuit'}
-      </button>
+        {resetting ? 'Resetting…' : 'Reset Circuit'}
+      </Button>
 
-      <div style={{ marginTop: 24 }}>
-        <div><strong>Org:</strong> {budget.orgId}</div>
-        <div><strong>Job:</strong> {budget.jobId}</div>
-        <div><strong>Target:</strong> {budget.targetId}</div>
-        <div><strong>TTL:</strong> {budget.halfOpenTtlSeconds}s</div>
-        <div><strong>Remaining:</strong> {formatUsd(budget.remainingMicros)}</div>
-      </div>
+      <Card className="mt-6">
+        <Card.Content className="grid grid-cols-2 gap-2 text-sm">
+          <div><strong>Org:</strong> {budget.orgId}</div>
+          <div><strong>Job:</strong> {budget.jobId}</div>
+          <div><strong>Target:</strong> {budget.targetId}</div>
+          <div><strong>TTL:</strong> {budget.halfOpenTtlSeconds}s</div>
+          <div><strong>Remaining:</strong> {formatUsd(budget.remainingMicros)}</div>
+        </Card.Content>
+      </Card>
     </main>
   );
 }

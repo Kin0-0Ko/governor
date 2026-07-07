@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-git clone https://github.com/YOUR_ORG/governor.git
+git clone https://github.com/Kin0-0Ko/governor.git
 cd governor
 pnpm install
 docker compose up -d          # Redis, PostgreSQL, RabbitMQ

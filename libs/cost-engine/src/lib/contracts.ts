@@ -1,8 +1,8 @@
 /** Shared enforcement state type used by both cost-engine and budget-store */
-export type EnforcementState = 'CLOSED' | 'OPEN' | 'HALF_OPEN' | 'NO_BUDGET' | 'STORE_UNAVAILABLE';
+export type EnforcementState = 'CLOSED' | 'OPEN' | 'HALF_OPEN' | 'NO_BUDGET' | 'STORE_UNAVAILABLE' | 'UNKNOWN_PROVIDER';
 
 /** Enforcement decision as visible to callers (superset of FSM states for result semantics) */
-export type EnforcementDecision = 'ALLOWED' | 'DENIED' | 'TRIPPED' | 'NO_BUDGET' | 'STORE_UNAVAILABLE';
+export type EnforcementDecision = 'ALLOWED' | 'DENIED' | 'TRIPPED' | 'NO_BUDGET' | 'STORE_UNAVAILABLE' | 'UNKNOWN_PROVIDER';
 
 export interface CostSignal {
   orgId: string;

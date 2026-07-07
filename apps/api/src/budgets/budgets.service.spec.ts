@@ -21,6 +21,7 @@ function makeBudgetEntity(overrides: Partial<Budget> = {}): Budget {
 
 function makeRepo(overrides = {}) {
   return {
+    find: jest.fn(),
     findOne: jest.fn(),
     findOneBy: jest.fn(),
     create: jest.fn((dto: Partial<Budget>) => ({ ...makeBudgetEntity(), ...dto })),
@@ -119,7 +120,7 @@ describe('BudgetsService', () => {
       const { svc } = await buildService({
         findOneBy: jest.fn().mockResolvedValue(makeBudgetEntity()),
       });
-      const result = await svc.findById('budget-uuid');
+      const result = await svc.findById('budget-uuid', 'org-1');
       expect(result.id).toBe('budget-uuid');
     });
 
@@ -127,7 +128,14 @@ describe('BudgetsService', () => {
       const { svc } = await buildService({
         findOneBy: jest.fn().mockResolvedValue(null),
       });
-      await expect(svc.findById('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(svc.findById('nonexistent', 'org-1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException (not a distinct error) when budget belongs to a different org (FR-008)', async () => {
+      const { svc } = await buildService({
+        findOneBy: jest.fn().mockResolvedValue(makeBudgetEntity({ orgId: 'org-1' })),
+      });
+      await expect(svc.findById('budget-uuid', 'org-2')).rejects.toThrow(NotFoundException);
     });
   });
 
@@ -140,7 +148,7 @@ describe('BudgetsService', () => {
       });
 
       const dto: UpdateBudgetDto = { capMicros: '10000000' };
-      const result = await svc.update('budget-uuid', dto);
+      const result = await svc.update('budget-uuid', 'org-1', dto);
 
       expect(result.capMicros).toBe(10_000_000n);
       expect(store.warmCapKey).toHaveBeenCalledWith('org-1', 'budget-uuid', 10_000_000n);
@@ -153,7 +161,7 @@ describe('BudgetsService', () => {
         save: jest.fn().mockImplementation(async (e: Budget) => e),
       });
 
-      const result = await svc.update('budget-uuid', { halfOpenTtlSeconds: 120 });
+      const result = await svc.update('budget-uuid', 'org-1', { halfOpenTtlSeconds: 120 });
 
       expect(result.capMicros).toBe(5_000_000n);
       expect(result.halfOpenTtlSeconds).toBe(120);
@@ -164,7 +172,38 @@ describe('BudgetsService', () => {
       const { svc } = await buildService({
         findOneBy: jest.fn().mockResolvedValue(null),
       });
-      await expect(svc.update('nope', { capMicros: '1000000' })).rejects.toThrow(NotFoundException);
+      await expect(svc.update('nope', 'org-1', { capMicros: '1000000' })).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException when budget belongs to a different org', async () => {
+      const { svc } = await buildService({
+        findOneBy: jest.fn().mockResolvedValue(makeBudgetEntity({ orgId: 'org-1' })),
+      });
+      await expect(svc.update('budget-uuid', 'org-2', { capMicros: '1000000' })).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('findAllByOrg', () => {
+    it('returns only budgets for the given org', async () => {
+      const budgets = [makeBudgetEntity({ id: 'b1' }), makeBudgetEntity({ id: 'b2' })];
+      const { svc, repo } = await buildService({
+        find: jest.fn().mockResolvedValue(budgets),
+      });
+
+      const result = await svc.findAllByOrg('org-1');
+
+      expect(repo.find).toHaveBeenCalledWith({ where: { orgId: 'org-1' } });
+      expect(result).toHaveLength(2);
+    });
+
+    it('returns an empty array for an org with no budgets', async () => {
+      const { svc } = await buildService({
+        find: jest.fn().mockResolvedValue([]),
+      });
+
+      const result = await svc.findAllByOrg('org-with-nothing');
+
+      expect(result).toEqual([]);
     });
   });
 
@@ -174,7 +213,7 @@ describe('BudgetsService', () => {
         findOneBy: jest.fn().mockResolvedValue(makeBudgetEntity()),
       });
 
-      await svc.softDelete('budget-uuid');
+      await svc.softDelete('budget-uuid', 'org-1');
       expect(repo.softDelete).toHaveBeenCalledWith('budget-uuid');
     });
 
@@ -182,7 +221,14 @@ describe('BudgetsService', () => {
       const { svc } = await buildService({
         findOneBy: jest.fn().mockResolvedValue(null),
       });
-      await expect(svc.softDelete('nope')).rejects.toThrow(NotFoundException);
+      await expect(svc.softDelete('nope', 'org-1')).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException when budget belongs to a different org', async () => {
+      const { svc } = await buildService({
+        findOneBy: jest.fn().mockResolvedValue(makeBudgetEntity({ orgId: 'org-1' })),
+      });
+      await expect(svc.softDelete('budget-uuid', 'org-2')).rejects.toThrow(NotFoundException);
     });
   });
 });

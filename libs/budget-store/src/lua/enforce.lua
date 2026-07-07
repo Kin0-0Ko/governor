@@ -2,10 +2,11 @@
   enforce.lua — Atomic circuit-breaker enforcement script.
 
   KEYS:
-    KEYS[1] = budget:{orgId:budgetId}:state    (FSM state string)
-    KEYS[2] = budget:{orgId:budgetId}:spend    (cumulative micro-dollars as string)
-    KEYS[3] = budget:{orgId:budgetId}:cap      (ceiling micro-dollars as string)
-    KEYS[4] = budget:{orgId:budgetId}:ttl_exp  (OPEN→HALF_OPEN UNIX expiry timestamp)
+    KEYS[1] = budget:{orgId:budgetId}:state          (FSM state string)
+    KEYS[2] = budget:{orgId:budgetId}:spend           (cumulative micro-dollars as string)
+    KEYS[3] = budget:{orgId:budgetId}:cap             (ceiling micro-dollars as string)
+    KEYS[4] = budget:{orgId:budgetId}:ttl_exp         (OPEN→HALF_OPEN UNIX expiry timestamp)
+    KEYS[5] = budget:{orgId:budgetId}:probe_inflight  (HALF_OPEN single-probe claim marker)
 
   ARGV:
     ARGV[1] = costMicros   (string, micro-dollars to debit)
@@ -15,12 +16,17 @@
   Returns: table {allowed, state, spendMicros, remainingMicros}
     allowed = 1 (allow) or 0 (deny)
     state   = current FSM state string after evaluation
+
+  Money-correctness invariant: a request that is DENIED (NO_BUDGET, OPEN,
+  TRIPPED, or losing the HALF_OPEN probe race) NEVER debits spend. Only a
+  request that is ALLOWED increments the spend counter.
 --]]
 
 local stateKey  = KEYS[1]
 local spendKey  = KEYS[2]
 local capKey    = KEYS[3]
 local ttlKey    = KEYS[4]
+local probeKey  = KEYS[5]
 
 local costMicros  = tonumber(ARGV[1])
 local nowUnix     = tonumber(ARGV[2])
@@ -35,6 +41,7 @@ local cap = tonumber(capStr)
 
 -- Read current FSM state (default CLOSED if key absent)
 local state = redis.call('GET', stateKey) or 'CLOSED'
+local currentSpend = math.floor(tonumber(redis.call('GET', spendKey) or '0'))
 
 -- OPEN state: check if TTL has expired for HALF_OPEN probe
 if state == 'OPEN' then
@@ -42,7 +49,6 @@ if state == 'OPEN' then
   local exp = expStr and tonumber(expStr) or 0
   if nowUnix < exp then
     -- Still within OPEN window: deny without debit
-    local currentSpend = math.floor(tonumber(redis.call('GET', spendKey) or '0'))
     local remaining = cap - currentSpend
     if remaining < 0 then remaining = 0 end
     return {0, 'OPEN', tostring(currentSpend), tostring(remaining)}
@@ -52,26 +58,41 @@ if state == 'OPEN' then
   state = 'HALF_OPEN'
 end
 
--- HALF_OPEN: allow exactly one probe request through; re-evaluate after debit
--- (probe is allowed to proceed; result of debit determines next transition)
+-- HALF_OPEN: only the request that claims the probe lock is treated as the
+-- trial; all others are denied without debit while the probe is in flight.
+if state == 'HALF_OPEN' then
+  local claimed = redis.call('SET', probeKey, '1', 'NX', 'PX', tostring(ttlSeconds * 1000))
+  if not claimed then
+    local remaining = cap - currentSpend
+    if remaining < 0 then remaining = 0 end
+    return {0, 'OPEN', tostring(currentSpend), tostring(remaining)}
+  end
+end
 
--- Debit: atomic increment (floor ensures integer string in all Redis impls)
+-- Compute the would-be spend WITHOUT mutating any key yet.
+local wouldBeSpend = currentSpend + costMicros
+
+if wouldBeSpend >= cap then
+  -- Breach: deny without debiting the denied request's cost.
+  local newTtlExp = nowUnix + ttlSeconds
+  redis.call('SET', stateKey, 'OPEN')
+  redis.call('SET', ttlKey, tostring(newTtlExp))
+  if state == 'HALF_OPEN' then
+    redis.call('DEL', probeKey)
+  end
+  local remaining = cap - currentSpend
+  if remaining < 0 then remaining = 0 end
+  return {0, 'TRIPPED', tostring(currentSpend), tostring(remaining)}
+end
+
+-- Allowed: debit atomically now that the decision is made.
 local newSpend = math.floor(redis.call('INCRBY', spendKey, costMicros))
 local remaining = cap - newSpend
 if remaining < 0 then remaining = 0 end
 
--- Check if cap is breached
-if newSpend >= cap then
-  -- Trip or remain OPEN
-  local newTtlExp = nowUnix + ttlSeconds
-  redis.call('SET', stateKey, 'OPEN')
-  redis.call('SET', ttlKey, tostring(newTtlExp))
-  return {0, 'TRIPPED', tostring(newSpend), '0'}
-end
-
--- Cap not breached: allow and ensure CLOSED state
 if state == 'HALF_OPEN' then
   redis.call('SET', stateKey, 'CLOSED')
+  redis.call('DEL', probeKey)
 end
 -- If already CLOSED, no state write needed
 

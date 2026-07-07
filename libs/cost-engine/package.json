@@ -5,7 +5,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_ORG/governor.git",
+    "url": "https://github.com/Kin0-0Ko/governor.git",
     "directory": "libs/cost-engine"
   },
   "main": "./src/index.js",
@@ -21,7 +21,9 @@
     "!src/**/*.spec.*",
     "!src/**/__tests__"
   ],
-  "dependencies": {},
+  "dependencies": {
+    "tslib": "^2.6.0"
+  },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"

@@ -48,9 +48,17 @@ export class BudgetsService {
     return saved;
   }
 
-  async findById(id: string): Promise<Budget> {
+  /**
+   * orgId is required and enforced here (not just at the controller) so that
+   * every call site — including future ones — is safe by construction; a
+   * mismatch is indistinguishable from not-found (FR-008), never a separate
+   * 403, so cross-org callers cannot learn whether a given id exists at all.
+   */
+  async findById(id: string, orgId: string): Promise<Budget> {
     const budget = await this.budgetRepo.findOneBy({ id });
-    if (!budget) throw new NotFoundException(`Budget ${id} not found`);
+    if (!budget || budget.orgId !== orgId) {
+      throw new NotFoundException(`Budget ${id} not found`);
+    }
     return budget;
   }
 
@@ -58,8 +66,12 @@ export class BudgetsService {
     return this.budgetRepo.findOne({ where: { orgId, jobId, targetId } });
   }
 
-  async update(id: string, dto: UpdateBudgetDto): Promise<Budget> {
-    const budget = await this.findById(id);
+  async findAllByOrg(orgId: string): Promise<Budget[]> {
+    return this.budgetRepo.find({ where: { orgId } });
+  }
+
+  async update(id: string, orgId: string, dto: UpdateBudgetDto): Promise<Budget> {
+    const budget = await this.findById(id, orgId);
     if (dto.capMicros !== undefined) {
       budget.capMicros = BigInt(dto.capMicros);
     }
@@ -71,8 +83,8 @@ export class BudgetsService {
     return saved;
   }
 
-  async softDelete(id: string): Promise<void> {
-    await this.findById(id);
+  async softDelete(id: string, orgId: string): Promise<void> {
+    await this.findById(id, orgId);
     await this.budgetRepo.softDelete(id);
   }
 }

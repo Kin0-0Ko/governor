@@ -47,6 +47,11 @@ async function buildApp(service: ReturnType<typeof buildService>) {
 
   const app = module.createNestApplication();
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+  // Simulate the ApiKeyGuard having attached orgId to the request, as it does in production.
+  app.use((req: any, _res: any, next: any) => {
+    req.orgId = 'org-1';
+    next();
+  });
   await app.init();
   return app;
 }
@@ -213,6 +218,23 @@ describe('EnforceController', () => {
         .post('/v1/enforce')
         .send({ ...validBody, retryIndex: '0' })
         .expect(200);
+    });
+  });
+
+  describe('POST /v1/enforce — org scoping (FR-008)', () => {
+    it('rejects a request whose orgId does not match the authenticated caller\'s org', async () => {
+      const svc = buildService();
+      const app = await buildApp(svc);
+
+      // req.orgId is stubbed to 'org-1' in buildApp; dto.orgId here is different.
+      await request(app.getHttpServer())
+        .post('/v1/enforce')
+        .send({ ...validBody, orgId: 'org-2' })
+        .expect(404);
+
+      expect(svc.enforce).not.toHaveBeenCalled();
+
+      await app.close();
     });
   });
 });

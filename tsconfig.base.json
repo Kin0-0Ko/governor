@@ -14,10 +14,12 @@
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "strict": true,
+    "baseUrl": ".",
     "paths": {
       "@governor/cost-engine": ["libs/cost-engine/src/index.ts"],
       "@governor/budget-store": ["libs/budget-store/src/index.ts"],
-      "@governor/playwright-hook": ["libs/playwright-hook/src/index.ts"]
+      "@governor/playwright-hook": ["libs/playwright-hook/src/index.ts"],
+      "@governor/messaging-contracts": ["libs/messaging-contracts/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

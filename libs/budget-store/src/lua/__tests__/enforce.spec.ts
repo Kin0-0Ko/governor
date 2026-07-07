@@ -13,6 +13,7 @@ const KEYS = [
   'budget:{org1:budget-abc}:spend',
   'budget:{org1:budget-abc}:cap',
   'budget:{org1:budget-abc}:ttl_exp',
+  'budget:{org1:budget-abc}:probe_inflight',
 ];
 
 const NOW = 1_700_000_000; // fixed unix timestamp for determinism
@@ -28,7 +29,7 @@ async function callEnforce(
 ): Promise<EnforceResult> {
   const result = await (client as any).eval(
     LUA_SCRIPT,
-    4,
+    5,
     ...KEYS,
     String(costMicros),
     String(now),
@@ -134,12 +135,16 @@ describe('enforce.lua', () => {
       expect(ttlVal).toBe(String(NOW + TTL));
     });
 
-    it('trips when single request pushes spend past cap (over-debit)', async () => {
+    it('trips without debiting the denied request\'s cost (FR-004)', async () => {
       await setCapAndState(client, 1_000_000, 'CLOSED', 800_000);
       const [allowed, state, spend] = await callEnforce(client, 400_000);
       expect(allowed).toBe(0);
       expect(state).toBe('TRIPPED');
-      expect(Number(spend)).toBeGreaterThanOrEqual(1_000_000);
+      // Pre-request spend (800_000) is returned, NOT 800_000 + 400_000 — the
+      // denied request's cost must never be added to the recorded ledger.
+      expect(spend).toBe('800000');
+      const stored = await client.get(KEYS[1]);
+      expect(stored).toBe('800000');
     });
   });
 
@@ -188,6 +193,39 @@ describe('enforce.lua', () => {
       await callEnforce(client, 100_000, NOW);
       const stateVal = await client.get(KEYS[0]);
       expect(stateVal).toBe('CLOSED');
+    });
+  });
+
+  // ── HALF_OPEN single-probe race (FR-005) ──────────────────────────────────
+
+  describe('HALF_OPEN concurrent probe race', () => {
+    it('claims the probe lock so only the first-evaluated request transitions the breaker; rejects it if it re-breaches, without letting later requests double-claim', async () => {
+      // Cap only has headroom for ONE more probe-sized request. If the single-probe
+      // guard did not exist, multiple concurrent evaluators could all read
+      // state=HALF_OPEN simultaneously and all attempt to debit before any commits
+      // a state transition. The probe lock (SET NX) ensures only the first to
+      // claim it proceeds past the HALF_OPEN gate in that evaluation; because Redis
+      // EVAL is atomic, this is the actual mechanism (not just an artifact of
+      // sequential test scheduling) that prevents the FSM from being corrupted by
+      // a burst of simultaneous requests arriving right as the TTL expires.
+      await setCapAndState(client, 1_100_001, 'OPEN', 1_000_000, NOW - 1);
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () => callEnforce(client, 100_000, NOW)),
+      );
+
+      const allowedCount = results.filter(([allowed]) => allowed === 1).length;
+      // Exactly one request is evaluated while the breaker is still HALF_OPEN and
+      // claims the probe; it succeeds (cap has exactly enough headroom), closing
+      // the breaker. Every other request is denied — either because it lost the
+      // probe race while state was still HALF_OPEN, or because by the time it is
+      // evaluated the breaker is already CLOSED with zero remaining headroom.
+      expect(allowedCount).toBe(1);
+
+      const finalSpend = await client.get(KEYS[1]);
+      // Only the single winning request's cost was ever debited — no request
+      // that was denied contributed to the spend total (FR-004 holds under
+      // concurrency too, not just sequentially).
+      expect(finalSpend).toBe('1100000');
     });
   });
 

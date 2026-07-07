@@ -69,7 +69,7 @@ describe('StreamService', () => {
       const received: BudgetStreamEvent[] = [];
 
       subject.subscribe((e) => { received.push(e); if (received.length === 2) { expect(received).toHaveLength(2); done(); } });
-      subject.subscribe(() => {}); // second subscriber
+      subject.subscribe({ next: () => undefined }); // second subscriber
 
       const event: BudgetStreamEvent = {
         type: 'reset',

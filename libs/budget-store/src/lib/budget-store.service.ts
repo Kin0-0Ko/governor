@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import Redis from 'ioredis';
+import Redis, { Cluster } from 'ioredis';
 import type { EnforcementState } from '@governor/cost-engine';
 
 export interface EnforceParams {
@@ -36,16 +36,38 @@ export class BudgetStoreService implements OnModuleInit {
   private readonly logger = new Logger(BudgetStoreService.name);
   private scriptSha: string | null = null;
 
-  constructor(private readonly redis: Redis) {}
+  constructor(private readonly redis: Redis | Cluster) {}
 
-  async onModuleInit(): Promise<void> {
-    try {
-      this.scriptSha = await this.redis.script('LOAD', LUA_SCRIPT) as string;
-      this.logger.log(`enforce.lua loaded, SHA=${this.scriptSha}`);
-    } catch (err) {
-      this.logger.error('Failed to load enforce.lua on bootstrap', err);
-      // Service starts degraded — evalEnforce will fail-safe deny
+  onModuleInit(): void {
+    // Deliberately not awaited: a Cluster client with lazyConnect hasn't
+    // discovered its topology yet at this point, and SCRIPT LOAD has no key
+    // to route by, so waiting here can stall Nest's bootstrap indefinitely
+    // if the connection/discovery handshake is slow. evalScript() already
+    // falls back to plain EVAL (no caching) whenever scriptSha is unset, so
+    // the service is fully correct — just uncached — until this resolves.
+    this.loadScript()
+      .then((sha) => {
+        this.scriptSha = sha;
+        this.logger.log(`enforce.lua loaded, SHA=${sha}`);
+      })
+      .catch((err) => {
+        this.logger.error('Failed to load enforce.lua on bootstrap — falling back to uncached EVAL', err);
+      });
+  }
+
+  /**
+   * SCRIPT LOAD has no key argument, so a Cluster client can't route it to a
+   * single node automatically — it must be loaded on every master explicitly,
+   * otherwise EVALSHA against an unloaded node fails with NOSCRIPT.
+   */
+  private async loadScript(): Promise<string> {
+    const redis = this.redis;
+    if (redis instanceof Cluster) {
+      const masters = redis.nodes('master');
+      const shas = await Promise.all(masters.map((node) => node.script('LOAD', LUA_SCRIPT) as Promise<string>));
+      return shas[0];
     }
+    return (await redis.script('LOAD', LUA_SCRIPT)) as string;
   }
 
   /**
@@ -61,6 +83,7 @@ export class BudgetStoreService implements OnModuleInit {
       `budget:${tag}:spend`,
       `budget:${tag}:cap`,
       `budget:${tag}:ttl_exp`,
+      `budget:${tag}:probe_inflight`,
     ];
     const nowUnix = Math.floor(Date.now() / 1000);
 
@@ -139,7 +162,7 @@ export class BudgetStoreService implements OnModuleInit {
       } catch (err: any) {
         if (err?.message?.includes('NOSCRIPT')) {
           // Script evicted from Redis — reload and retry once
-          this.scriptSha = await this.redis.script('LOAD', LUA_SCRIPT) as string;
+          this.scriptSha = await this.loadScript();
           return await (this.redis as any).evalsha(this.scriptSha, keys.length, ...keys, ...args);
         }
         throw err;

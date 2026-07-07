@@ -10,7 +10,7 @@
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-Report via [GitHub private security advisory](https://github.com/YOUR_ORG/governor/security/advisories/new).
+Report via [GitHub private security advisory](https://github.com/Kin0-0Ko/governor/security/advisories/new).
 
 Include:
 - Description of the vulnerability

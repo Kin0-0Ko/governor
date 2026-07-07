@@ -47,12 +47,24 @@ export interface SpendItem {
 
 export const governorApi = createApi({
   reducerPath: 'governorApi',
-  baseQuery: fetchBaseQuery({ baseUrl: `${API_BASE}/v1` }),
+  baseQuery: fetchBaseQuery({
+    baseUrl: `${API_BASE}/v1`,
+    prepareHeaders: (headers) => {
+      const apiKey = process.env['NEXT_PUBLIC_GOVERNOR_API_KEY'];
+      if (apiKey) headers.set('Authorization', `Bearer ${apiKey}`);
+      return headers;
+    },
+  }),
   tagTypes: ['Budget', 'Spend'],
   endpoints: (builder) => ({
     getBudget: builder.query<Budget, string>({
       query: (id) => `budgets/${id}`,
       providesTags: (_, __, id) => [{ type: 'Budget', id }],
+    }),
+
+    getBudgets: builder.query<Budget[], void>({
+      query: () => 'budgets',
+      providesTags: ['Budget'],
     }),
 
     createBudget: builder.mutation<Budget, CreateBudgetRequest>({
@@ -88,7 +100,9 @@ export const governorApi = createApi({
       providesTags: (_, __, id) => [{ type: 'Budget', id }],
       async onCacheEntryAdded(budgetId, { updateCachedData, cacheDataLoaded, cacheEntryRemoved }) {
         await cacheDataLoaded;
-        const es = new EventSource(`${API_BASE}/v1/stream/budgets/${budgetId}`);
+        const apiKey = process.env['NEXT_PUBLIC_GOVERNOR_API_KEY'];
+        const tokenParam = apiKey ? `?token=${encodeURIComponent(apiKey)}` : '';
+        const es = new EventSource(`${API_BASE}/v1/stream/budgets/${budgetId}${tokenParam}`);
 
         const onSpend = (e: MessageEvent) => {
           const data = JSON.parse(e.data);
@@ -126,6 +140,7 @@ export const governorApi = createApi({
 
 export const {
   useGetBudgetQuery,
+  useGetBudgetsQuery,
   useCreateBudgetMutation,
   useUpdateBudgetMutation,
   useDeleteBudgetMutation,

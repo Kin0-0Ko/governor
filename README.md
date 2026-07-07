@@ -44,7 +44,7 @@ Private apps (not published): `api`, `worker`, `dashboard`.
 ### 1 — Clone and install
 
 ```bash
-git clone https://github.com/YOUR_ORG/governor.git
+git clone https://github.com/Kin0-0Ko/governor.git
 cd governor
 pnpm install
 ```
@@ -62,10 +62,23 @@ Wait ~10s for the Redis cluster-init container to form the cluster.
 ### 3 — Run migrations
 
 ```bash
-pnpm nx run api:migration:run
+pnpm nx run api:db:migrate
 ```
 
-### 4 — Start the API
+### 4 — Seed reference data and create an API key
+
+```bash
+pnpm nx run api:seed:providers
+pnpm nx run api:seed:api-key -- org-1 "local-dev"
+```
+
+The second command prints a raw API key once — copy it, it is only ever shown here (only its hash is stored). Export it for the next steps:
+
+```bash
+export GOVERNOR_API_KEY=<the raw key printed above>
+```
+
+### 5 — Start the API
 
 ```bash
 pnpm nx serve api
@@ -73,12 +86,15 @@ pnpm nx serve api
 
 API listens on `http://localhost:3000`.
 
-### 5 — Create a budget and enforce
+### 6 — Create a budget and enforce
+
+Every request below requires the API key from step 4 via `Authorization: Bearer <key>`.
 
 ```bash
 # Create $5.00 budget for a scraping job
 curl -s -X POST http://localhost:3000/v1/budgets \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $GOVERNOR_API_KEY" \
   -d '{
     "orgId": "org-1",
     "jobId": "job-scrape-001",
@@ -90,6 +106,7 @@ curl -s -X POST http://localhost:3000/v1/budgets \
 # Enforce — should return ALLOWED
 curl -s -X POST http://localhost:3000/v1/enforce \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $GOVERNOR_API_KEY" \
   -d '{
     "orgId": "org-1",
     "jobId": "job-scrape-001",
@@ -229,6 +246,10 @@ Pre-authorise a scraping request. Called before every HTTP request in the hot pa
 Returns `201` with `{ id, orgId, jobId, targetId, capMicros, halfOpenTtlSeconds, createdAt }`.  
 Returns `409` if budget already exists for the scope.
 
+### GET /v1/budgets
+
+Lists every budget for the authenticated caller's org, each merged with live circuit state (same shape as `GET /v1/budgets/:id`). Returns `[]` when the org has no budgets.
+
 ### GET /v1/budgets/:id
 
 Returns budget + live circuit state from Redis:
@@ -330,7 +351,14 @@ pnpm nx serve api
 pnpm nx serve worker
 
 # Terminal 3
-pnpm nx dev dashboard    # http://localhost:4200
+pnpm nx serve dashboard  # http://localhost:4200
+```
+
+The dashboard needs an `apps/dashboard/.env.local` (gitignored) with the API key it should use for every request and the SSE stream — every endpoint except `/health*` requires auth:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:3000
+NEXT_PUBLIC_GOVERNOR_API_KEY=<the raw key from api:seed:api-key>
 ```
 
 ### Environment variables
@@ -340,13 +368,33 @@ pnpm nx dev dashboard    # http://localhost:4200
 | `PORT` | `3000` | API HTTP port |
 | `DB_HOST` | `localhost` | PostgreSQL host |
 | `DB_PORT` | `5432` | PostgreSQL port |
-| `DB_USER` | `governor` | PostgreSQL user |
-| `DB_PASS` | `governor` | PostgreSQL password |
+| `DB_USER` | `governor` | PostgreSQL superuser — migrations only |
+| `DB_PASS` | `governor_dev` | PostgreSQL superuser password — migrations only |
 | `DB_NAME` | `governor` | PostgreSQL database |
+| `DB_APP_USER` | `governor_api` | Least-privilege login used by api/worker at runtime (granted `api_role` by migration 005) |
+| `DB_APP_PASS` | `governor_dev` | Password for `DB_APP_USER` |
 | `REDIS_HOST` | `localhost` | Redis cluster seed host |
 | `REDIS_PORT` | `7000` | Redis cluster seed port |
 | `RABBITMQ_URL` | `amqp://governor:governor_dev@localhost:5672` | RabbitMQ connection |
 | `GOVERNOR_API_URL` | `http://localhost:3000` | Used by playwright-hook |
+
+---
+
+## Troubleshooting
+
+**`docker compose up -d` fails to bind Postgres on port 5432, or the API can't connect / auth fails against the containerized DB.**
+
+A native PostgreSQL install running locally on Windows/macOS (as a service) frequently already owns port 5432, so the docker-compose Postgres container silently loses the port or the API connects to the wrong (native) instance with different credentials. Check what's listening first:
+
+```bash
+# Windows
+netstat -ano | findstr :5432
+
+# macOS/Linux
+lsof -i :5432
+```
+
+If a native Postgres service owns the port, either stop it (`services.msc` on Windows, `brew services stop postgresql` on macOS) before running `docker compose up -d`, or remap the container port in `docker-compose.yml` (e.g. `"5433:5432"`) and set `DB_PORT=5433` in `.env` to match.
 
 ---
 

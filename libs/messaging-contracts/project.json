@@ -1,0 +1,33 @@
+{
+  "name": "messaging-contracts",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/messaging-contracts/src",
+  "projectType": "library",
+  "tags": ["scope:domain"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/messaging-contracts",
+        "main": "libs/messaging-contracts/src/index.ts",
+        "tsConfig": "libs/messaging-contracts/tsconfig.lib.json",
+        "assets": []
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["libs/messaging-contracts/**/*.ts"]
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/libs/messaging-contracts"],
+      "options": {
+        "jestConfig": "libs/messaging-contracts/jest.config.ts"
+      }
+    }
+  }
+}

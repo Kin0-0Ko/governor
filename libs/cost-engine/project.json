@@ -28,6 +28,11 @@
       "options": {
         "jestConfig": "libs/cost-engine/jest.config.ts"
       }
+    },
+    "nx-release-publish": {
+      "options": {
+        "packageRoot": "dist/libs/cost-engine"
+      }
     }
   }
 }

@@ -5,11 +5,16 @@ import {
   HttpCode,
   HttpStatus,
   Res,
+  Req,
 } from '@nestjs/common';
 import { IsString, IsNotEmpty, IsArray, IsInt, Min, IsISO8601 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { EnforceService } from './enforce.service';
+
+interface AuthedRequest extends Request {
+  orgId: string;
+}
 
 export class EnforceRequestDto {
   @IsString() @IsNotEmpty() orgId!: string;
@@ -31,7 +36,13 @@ export class EnforceController {
   async enforce(
     @Body() dto: EnforceRequestDto,
     @Res() res: Response,
+    @Req() req: AuthedRequest,
   ): Promise<void> {
+    if (dto.orgId !== req.orgId) {
+      res.status(404).json({ message: 'Not Found' });
+      return;
+    }
+
     const result = await this.enforceService.enforce(dto);
 
     if (result.decision === 'ALLOWED') {
@@ -58,6 +69,15 @@ export class EnforceController {
         decision: 'DENIED',
         state: 'NO_BUDGET',
         message: 'No budget configured for scope. Explicit budget required before spend is authorized.',
+      });
+      return;
+    }
+
+    if (result.state === 'UNKNOWN_PROVIDER') {
+      res.status(402).json({
+        decision: 'DENIED',
+        state: 'UNKNOWN_PROVIDER',
+        message: `Provider '${dto.provider}' is not registered or inactive. No cost charged.`,
       });
       return;
     }
