@@ -22,6 +22,6 @@ Include:
 
 ## Scope
 
-In-scope: `@governor/playwright-hook`, `@governor/cost-engine`, the Governor API, worker, and dashboard.
+In-scope: `@scrape-governor/playwright-hook`, `@scrape-governor/cost-engine`, the Governor API, worker, and dashboard.
 
 Out-of-scope: Vulnerabilities in dependencies (report to respective maintainers), social engineering, physical attacks.

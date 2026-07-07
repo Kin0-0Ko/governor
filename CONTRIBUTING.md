@@ -54,15 +54,15 @@ Every PR **must** confirm all 6 principles in the PR description:
 - No breaking change without `BREAKING CHANGE:` in commit footer
 - CHANGELOG entry generated automatically by `nx release` — do not edit manually
 - `peerDependencies` updated if new runtime peer required
-- Zero runtime dependencies on `@governor/cost-engine`
-- `@governor/playwright-hook` peer-depends on `playwright` ≥1.40 only
+- Zero runtime dependencies on `@scrape-governor/cost-engine`
+- `@scrape-governor/playwright-hook` peer-depends on `playwright` ≥1.40 only
 
 ## Custom pricing adapters
 
-Implement `CostAdapter` from `@governor/cost-engine`:
+Implement `CostAdapter` from `@scrape-governor/cost-engine`:
 
 ```typescript
-import { CostAdapter, CostSignal, ProviderConfig, computeCostMicros } from '@governor/cost-engine';
+import { CostAdapter, CostSignal, ProviderConfig, computeCostMicros } from '@scrape-governor/cost-engine';
 
 export class MyProviderAdapter implements CostAdapter {
   readonly provider = 'myprovider';
